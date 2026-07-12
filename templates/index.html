@@ -1,0 +1,232 @@
+<!doctype html>
+<html>
+<head>
+    <title>Digital Forensic Tool</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body {
+    font-family: Arial;
+    background: #0d1117;
+    color: #c9d1d9;
+    padding: 40px;
+}
+
+.container {
+    max-width: 900px;
+    margin: auto;
+    background: #161b22;
+    padding: 30px;
+    border-radius: 10px;
+}
+
+h1 {
+    color: #58a6ff;
+    margin-bottom: 5px;
+}
+
+p {
+    color: #8b949e;
+}
+
+input[type=file] {
+    margin: 20px 0;
+}
+
+button {
+    background: #238636;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+button:hover {
+    background: #2ea043;
+}
+
+.result {
+    background: #0d1117;
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 20px;
+    border: 1px solid #30363d;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+td {
+    padding: 10px;
+    border-bottom: 1px solid #30363d;
+}
+
+td:first-child {
+    color: #58a6ff;
+    font-weight: bold;
+    width: 200px;
+}
+
+h2 {
+    border-bottom: 1px solid #30363d;
+    padding-bottom: 5px;
+}
+
+ul {
+    list-style: none;
+    padding: 0;
+}
+
+ul li {
+    padding: 10px;
+    margin-bottom: 8px;
+    background: #161b22;
+    border-left: 4px solid #58a6ff;
+    border-radius: 5px;
+}
+
+ul li:hover {
+    background: #21262d;
+    transition: 0.3s;
+}
+canvas {
+    margin-top: 20px;
+    background: #0d1117;
+    padding: 10px;
+    border-radius: 8px;
+}
+.danger {
+    background:#3a1e1e;
+    border-left:4px solid red;
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>🔍 Digital Forensic Tool</h1>
+
+<p style="color:#8b949e;">
+Analyze files, extract metadata, detect suspicious logs, and generate forensic reports.
+</p>
+
+<form method="post" enctype="multipart/form-data">
+    <input type="file" name="file" required>
+    <br>
+    <button type="submit">Analyze File</button>
+</form>
+
+{% if result %}
+<div class="result">
+    <h2>📊 Analysis Report</h2>
+
+    <table>
+        {% for k,v in result.items() %}
+        {% if k != "Timeline" %}
+        <tr>
+            <td>{{k}}</td>
+            <td>{{v}}</td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+    </table>
+
+    {% if pdf_file %}
+    <br>
+    <a href="/download/{{ pdf_file }}">
+        <button>⬇ Download Report (PDF)</button>
+    </a>
+    {% endif %}
+</div>
+
+{% if result.Timeline %}
+<div class="result">
+    <h2>⏱️ Event Timeline</h2>
+
+    <ul>
+        {% for item in result.Timeline %}
+        <li class="{% if 'failed' in item.event.lower() or 'error' in item.event.lower() or 'unauthorized' in item.event.lower() or 'attack' in item.event.lower() %}danger{% endif %}">
+            <b>{{ item.time }}</b><br>
+            <span style="color:#8b949e;">{{ item.event }}</span>
+        </li>
+        {% endfor %}
+    </ul>
+
+</div>
+{% endif %}
+
+<canvas id="timelineChart"></canvas>
+<script>
+const timeline = JSON.parse('{{ result.Timeline|tojson|safe }}');
+
+let labels = [];
+let normalCounts = {};
+let suspiciousCounts = {};
+
+timeline.forEach(item => {
+    let fullTime = item.time;
+    let time = fullTime.split(" ")[1].slice(0,5);
+
+    let event = item.event.toLowerCase();
+
+    let isSuspicious = (
+        event.includes("failed") ||
+        event.includes("error") ||
+        event.includes("unauthorized") ||
+        event.includes("attack")
+    );
+
+    if (isSuspicious) {
+        suspiciousCounts[time] = (suspiciousCounts[time] || 0) + 1;
+    } else {
+        normalCounts[time] = (normalCounts[time] || 0) + 1;
+    }
+});
+
+// Merge labels
+let allTimes = new Set([
+    ...Object.keys(normalCounts),
+    ...Object.keys(suspiciousCounts)
+]);
+
+labels = Array.from(allTimes).sort();
+
+let normalData = labels.map(t => normalCounts[t] || 0);
+let suspiciousData = labels.map(t => suspiciousCounts[t] || 0);
+
+const ctx = document.getElementById('timelineChart');
+
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: labels,
+        datasets: [
+            {
+                label: 'Normal Events',
+                data: normalData,
+                borderWidth: 2
+            },
+            {
+                label: '⚠ Suspicious Events',
+                data: suspiciousData,
+                borderWidth: 2
+            }
+        ]
+    }
+});
+</script>
+
+{% endif %}
+
+</div>
+
+</body>
+</html>
